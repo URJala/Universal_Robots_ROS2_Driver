@@ -38,8 +38,10 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <memory>
+#include <vector>
 
 #include <controller_interface/controller_interface.hpp>
+#include <controller_interface/chainable_controller_interface.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <ur_msgs/srv/set_force_mode.hpp>
@@ -85,12 +87,20 @@ enum StateInterfaces
   INITIALIZED_FLAG = 0u,
 };
 
-class ForceModeController : public controller_interface::ControllerInterface
+class ForceModeController : public controller_interface::ChainableControllerInterface
 {
 public:
   controller_interface::InterfaceConfiguration command_interface_configuration() const override;
 
   controller_interface::InterfaceConfiguration state_interface_configuration() const override;
+
+  std::vector<hardware_interface::CommandInterface> on_export_reference_interfaces() override;
+
+  bool on_set_chained_mode(bool chained_mode) override;
+
+  return_type update_reference_from_subscribers(const rclcpp::Time& time, const rclcpp::Duration& period) override;
+
+  return_type update_and_write_commands(const rclcpp::Time& time, const rclcpp::Duration& period) override;
 
   controller_interface::return_type update(const rclcpp::Time& time, const rclcpp::Duration& period) override;
 
