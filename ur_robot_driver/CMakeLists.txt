@@ -155,6 +155,9 @@ install(PROGRAMS
   examples/scaled_joint_example.py
   examples/examples.py
   examples/force_mode.py
+  examples/passthrough_example.py
+  examples/robot_class.py
+  examples/scaled_joint_example.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
