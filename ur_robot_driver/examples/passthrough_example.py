@@ -41,11 +41,15 @@ if __name__ == "__main__":
     # The following list are arbitrary joint positions, change according to your own needs
     waypts = [
         [-1, -2.5998, -1.004, -2.676, -0.992, -1.5406],
-        [-0.1, -2.6998, -1.104, -2.676, -0.992, -1.5406],
+        [-0.5, -2.0, -0.5, -2.0, -0.4, -1.0],
+        [0, -1.5, 0, 0, 0, -0.5],
+        [-0.5, -2.0, -0.5, -2.0, -0.4, -1.0],
         [-1, -2.5998, -1.004, -2.676, -0.992, -1.5406],
     ]
     # Velocities and accelerations can be omitted
     vels = [
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
         [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
         [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
         [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
@@ -54,16 +58,38 @@ if __name__ == "__main__":
         [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
         [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
         [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
     ]
-    time_vec = [Duration(sec=4, nanosec=0), Duration(sec=8, nanosec=0), Duration(sec=12, nanosec=0)]
+    bad_vels = [
+        [0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+    ]
+    bad_accels = [
+        [0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+    ]
+    time_vec = [
+        Duration(sec=2, nanosec=0),
+        Duration(sec=6, nanosec=0),
+        Duration(sec=10, nanosec=0),
+        Duration(sec=14, nanosec=0),
+        Duration(sec=18, nanosec=0),
+    ]
 
     # Execute trajectory on robot, make sure that the robot is booted and the control script is running
-    # Make sure that the pasthrough controller is loaded and activated
-    robot.load_controller("passthrough_trajectory_controller")
-    robot.switch_controllers(
-        ["passthrough_trajectory_controller"], ["scaled_joint_trajectory_controller"]
-    )
+    robot.play()
     # Trajectory using positions, velocities and accelerations
     robot.passthrough_trajectory(waypts, time_vec, vels, accels)
     # Trajectory using only positions
     robot.passthrough_trajectory(waypts, time_vec)
+
+    robot.passthrough_trajectory(waypts, time_vec, bad_vels, accels)
+
+    robot.passthrough_trajectory(waypts, time_vec, vels, bad_accels)

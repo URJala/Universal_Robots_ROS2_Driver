@@ -44,8 +44,5 @@ if __name__ == "__main__":
         [-1.58, -1.692, -1.4311, -0.0174, 1.5882, 0.0349],
     ]
     time_vec = [Duration(sec=4, nanosec=0), Duration(sec=8, nanosec=0), Duration(sec=12, nanosec=0)]
-    robot.switch_controllers(
-        ["scaled_joint_trajectory_controller"], ["passthrough_trajectory_controller"]
-    )
     # Execute trajectory on robot, make sure that the robot is booted and the control script is running
     robot.follow_trajectory(waypts, time_vec)

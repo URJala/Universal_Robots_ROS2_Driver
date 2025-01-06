@@ -34,7 +34,7 @@ from control_msgs.action import FollowJointTrajectory
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory as JTmsg, JointTrajectoryPoint
-from ur_msgs.srv import SetIO
+from ur_msgs.srv import SetIO, SetForceMode
 from controller_manager_msgs.srv import (
     UnloadController,
     LoadController,
@@ -63,7 +63,7 @@ Action_tuple = namedtuple("Actions", ["name", "action_type"])
 
 class Actions(Enum):
     PASSTHROUGH_TRAJECTORY = Action_tuple(
-        "/passthrough_trajectory_controller/forward_joint_trajectory", FollowJointTrajectory
+        "/passthrough_trajectory_controller/follow_joint_trajectory", FollowJointTrajectory
     )
     FOLLOW_TRAJECTORY = Action_tuple(
         "/scaled_joint_trajectory_controller/follow_joint_trajectory", FollowJointTrajectory
@@ -82,6 +82,9 @@ class Services(Enum):
     )
     Switch_Controller = Service_tuple("/controller_manager/switch_controller", SwitchController)
     List_Controllers = Service_tuple("/controller_manager/list_controllers", ListControllers)
+    start_force_mode = Service_tuple("/force_mode_controller/start_force_mode", SetForceMode)
+    stop_force_mode = Service_tuple("/force_mode_controller/stop_force_mode", Trigger)
+    play = Service_tuple("/dashboard_client/play", Trigger)
 
 
 # Helper functions
@@ -132,6 +135,9 @@ class Robot:
             {dict_key: waitForAction(self.node, action_tuple.name, action_tuple.action_type)}
         )
 
+    def play(self):
+        self.call_service(Services.play.name, Trigger.Request())
+
     def set_io(self, pin, value):
         """Test to set an IO."""
         set_io_req = SetIO.Request()
@@ -142,6 +148,15 @@ class Robot:
         self.call_service(Services.Set_IO.name, set_io_req)
 
     def follow_trajectory(self, waypts, time_vec):
+        # No other motion controllers can be active at the same time as the scaled joint controller
+        self.switch_controllers(
+            ["scaled_joint_trajectory_controller"],
+            [
+                "passthrough_trajectory_controller",
+                "force_mode_controller",
+                "freedrive_mode_controller",
+            ],
+        )
         """Send robot trajectory."""
         if len(waypts) != len(time_vec):
             raise Exception("waypoints vector and time vec should be same length")
@@ -175,6 +190,10 @@ class Robot:
         accels: list[float] = [],
         goal_time_tolerance=Duration(sec=1),
     ):
+        # The scaled joint controller can't be active at the same time as the passthrough controller
+        self.switch_controllers(
+            ["passthrough_trajectory_controller"], ["scaled_joint_trajectory_controller"]
+        )
         """Send trajectory through the passthrough controller."""
         if len(waypts) != len(time_vec):
             raise Exception("waypoints vector and time vec should be same length.")
@@ -196,7 +215,8 @@ class Robot:
             ),
         )
         if goal_response.accepted is False:
-            raise Exception("trajectory was not accepted")
+            print("trajectory was not accepted")
+            return
 
         # Verify execution
         result = self.get_result(
