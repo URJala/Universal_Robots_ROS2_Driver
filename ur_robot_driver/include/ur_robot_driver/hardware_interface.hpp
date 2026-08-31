@@ -356,6 +356,7 @@ protected:
   urcl::vector6d_t vector6dFromCommand(const std::array<double, 25>& command);
   urcl::Pose poseFromCommand(const std::array<double, 25>& command);
   urcl::Pose viaPoseFromCommand(const std::array<double, 25>& command);
+  bool getMoprimOptiMoveVelAndAcc(const std::array<double, 25>& command, double& velocity, double& acceleration);
 
   const std::string HW_IF_MOTION_PRIMITIVES = "motion_primitive";
   //*************** End Motion primitives stuff ***************

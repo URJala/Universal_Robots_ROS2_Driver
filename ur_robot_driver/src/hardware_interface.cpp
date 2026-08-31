@@ -2164,6 +2164,92 @@ void URPositionHardwareInterface::processMoprimMotionCmd(const std::array<double
         break;
       }
 
+      // MoveP
+      case 110:  // MoprimMotionType::VENDOR_RESERVED1:
+      {
+        if (!getMoprimVelAndAcc(command, velocity, acceleration, move_time)) {
+          RCLCPP_ERROR(rclcpp::get_logger("URPositionHardwareInterface"), "Invalid velocity or acceleration "
+                                                                          "values in MoveP primitive");
+          current_moprim_execution_status_ = MoprimExecutionState::ERROR;
+          return;
+        }
+        RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"),
+                    "Received MoveP motion primitive with: %s, velocity: %f, acceleration: %f, blend radius: %f",
+                    stringFromMotionTarget(target_command).c_str(), velocity, acceleration, blend_radius);
+        if (build_moprim_sequence_) {
+          RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Adding MoveP to sequence.");
+          moprim_sequence_.emplace_back(
+              std::make_shared<urcl::control::MovePPrimitive>(target_command, blend_radius, acceleration, velocity));
+          return;
+        } else {
+          RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Executing MoveP directly.");
+          bool success = instruction_executor_->moveP(target_command, acceleration, velocity, blend_radius);
+          if (success) {
+            current_moprim_execution_status_ = MoprimExecutionState::SUCCESS;
+          }
+          return;
+        }
+        break;
+      }
+
+      // OptiMoveJ
+      case 111:  // MoprimMotionType::VENDOR_RESERVED2:
+      {
+        if (!getMoprimOptiMoveVelAndAcc(command, velocity, acceleration)) {
+          RCLCPP_ERROR(rclcpp::get_logger("URPositionHardwareInterface"), "Invalid velocity or acceleration "
+                                                                          "values in OptiMoveJ primitive");
+          current_moprim_execution_status_ = MoprimExecutionState::ERROR;
+          return;
+        }
+
+        RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"),
+                    "Received OptiMoveJ motion primitive with: %s, velocity: %f, acceleration: %f, blend radius: %f",
+                    stringFromMotionTarget(target_command).c_str(), velocity, acceleration, blend_radius);
+        if (build_moprim_sequence_) {
+          RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Adding OptiMoveJ to sequence.");
+          moprim_sequence_.emplace_back(std::make_shared<urcl::control::OptimoveJPrimitive>(
+              target_command, blend_radius, acceleration, velocity));
+          return;
+        } else {
+          RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Executing OptiMoveJ directly.");
+          bool success = instruction_executor_->optimoveJ(target_command, acceleration, velocity, blend_radius);
+          if (success) {
+            current_moprim_execution_status_ = MoprimExecutionState::SUCCESS;
+          }
+          return;
+        }
+        break;
+      }
+
+      // OptiMoveL
+      case 112:  // MoprimMotionType::VENDOR_RESERVED3:
+      {
+        if (!getMoprimOptiMoveVelAndAcc(command, velocity, acceleration)) {
+          RCLCPP_ERROR(rclcpp::get_logger("URPositionHardwareInterface"), "Invalid velocity or acceleration "
+                                                                          "values in OptiMoveL primitive");
+          current_moprim_execution_status_ = MoprimExecutionState::ERROR;
+          return;
+        }
+
+        RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"),
+                    "Received OptiMoveL motion primitive with: %s, velocity: %f%, acceleration: %f%, blend radius: %f",
+                    stringFromMotionTarget(target_command).c_str(), velocity, acceleration, blend_radius);
+        if (build_moprim_sequence_) {
+          RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Adding OptiMoveL to sequence.");
+          moprim_sequence_.emplace_back(std::make_shared<urcl::control::OptimoveLPrimitive>(
+              target_command, blend_radius, acceleration, velocity));
+          return;
+        } else {
+          RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Executing OptiMoveL directly.");
+          bool success = instruction_executor_->optimoveL(target_command, acceleration, velocity, blend_radius);
+          if (success) {
+            current_moprim_execution_status_ = MoprimExecutionState::SUCCESS;
+          }
+          return;
+        }
+        break;
+      }
+
       default:
       {
         RCLCPP_ERROR(rclcpp::get_logger("URPositionHardwareInterface"),
@@ -2225,6 +2311,23 @@ bool URPositionHardwareInterface::getMoprimVelAndAcc(const std::array<double, 25
     return true;
   } else {
     RCLCPP_ERROR(rclcpp::get_logger("URPositionHardwareInterface"), "velocity or acceleration is invalid");
+    return false;
+  }
+}
+
+bool URPositionHardwareInterface::getMoprimOptiMoveVelAndAcc(const std::array<double, 25>& command, double& velocity,
+                                                             double& acceleration)
+{
+  // Check if velocity and acceleration are valid percentages
+  if (!std::isnan(command[22]) && command[22] > 0.0 && command[22] <= 1.0 && !std::isnan(command[23]) &&
+      command[23] > 0.0 && command[23] <= 1.0) {
+    velocity = command[22];
+    acceleration = command[23];
+    return true;
+  } else {
+    RCLCPP_ERROR(rclcpp::get_logger("URPositionHardwareInterface"), "Velocity or acceleration is invalid. With "
+                                                                    "optimove, velocitiy and acceleration is a "
+                                                                    "percentage, so must be in the range ]0.0 ; 1.0]");
     return false;
   }
 }
