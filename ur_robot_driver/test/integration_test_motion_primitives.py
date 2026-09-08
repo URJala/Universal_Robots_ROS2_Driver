@@ -199,6 +199,54 @@ class MotionPrimitivesControllerTest(unittest.TestCase):
             ]
         )
 
+    def test_movep_accepts_joint_target(self):
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    MotionPrimitive.VENDOR_RESERVED1,  # UR: MoveP
+                    joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+            ]
+        )
+
+    def test_movep_accepts_pose_target(self):
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    MotionPrimitive.VENDOR_RESERVED1,  # UR: MoveP
+                    poses=[make_pose(0.174, -0.3, 0.3)],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+            ]
+        )
+
+    def test_optimove_j_accepts_joint_target(self):
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    MotionPrimitive.VENDOR_RESERVED2,  # UR: OptimoveJ
+                    joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+            ]
+        )
+
+    def test_optimove_l_accepts_pose_target(self):
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    MotionPrimitive.VENDOR_RESERVED3,  # UR: OptimoveL
+                    poses=[make_pose(0.174, -0.3, 0.3)],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+            ]
+        )
+
     def test_ambiguous_joint_and_pose_target_is_rejected(self):
         goal_handle = self._motion_sequence.send_goal(
             trajectory=MotionPrimitiveSequence(
