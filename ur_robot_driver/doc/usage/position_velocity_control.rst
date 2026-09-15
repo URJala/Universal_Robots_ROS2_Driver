@@ -94,10 +94,20 @@ Currently supported motion types:
 * ``CIRCULAR_CARTESIAN``: Circular move in Cartesian space through a via-point to a target pose
   (moveC).
 
-The underlying `Universal Robots Client Library
-<https://github.com/UniversalRobots/Universal_Robots_Client_Library>`_ supports additional motion
-types such as moveP (process move with constant TCP velocity), optiMoveJ, optiMoveL, and spline
-motions. These are not yet exposed through the ``control_msgs`` motion primitive interface.
+UR-specific motion types:
+
+These motion types are forwarded by the controller but are not defined in
+``control_msgs``. They are provided by ``ur_msgs/msg/UrMotionTypes``:
+
+* ``MOVEP``: Process move with constant TCP velocity (``movep``).
+* ``OPTIMOVEJ``: Optimized joint-space move (``optiMoveJ``).
+* ``OPTIMOVEL``: Optimized Cartesian-space move (``optiMoveL``).
+
+The `Universal Robots Client Library
+<https://github.com/UniversalRobots/Universal_Robots_Client_Library>`_ also
+supports spline motions. However, spline motions are not currently exposed
+through the ``control_msgs`` motion primitive interface or an ``ur_msgs``
+message.
 
 Key features:
 
