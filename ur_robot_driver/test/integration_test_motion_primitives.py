@@ -40,6 +40,7 @@ from control_msgs.msg import MotionArgument, MotionPrimitive, MotionPrimitiveSeq
 from controller_manager_msgs.srv import SwitchController
 from geometry_msgs.msg import PoseStamped
 from rclpy.node import Node
+from ur_msgs.msg import UrMotionTypes
 
 sys.path.append(os.path.dirname(__file__))
 from test_common import (  # noqa: E402
@@ -164,7 +165,15 @@ class MotionPrimitivesControllerTest(unittest.TestCase):
         result = self._motion_sequence.get_result(goal_handle, TIMEOUT_EXECUTE_MOTION_PRIMITIVE)
         self.assertEqual(result.error_code, ExecuteMotionPrimitiveSequence.Result.SUCCESSFUL)
 
-    def test_linear_joint_accepts_pose_target(self):
+    def test_linear_joint_accepts_all_targets(self):
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    MotionPrimitive.LINEAR_JOINT,
+                    joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                )
+            ]
+        )
         self.execute_motion_sequence(
             [
                 make_primitive(
@@ -173,13 +182,45 @@ class MotionPrimitivesControllerTest(unittest.TestCase):
                 )
             ]
         )
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    MotionPrimitive.LINEAR_JOINT,
+                    joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                ),
+                make_primitive(
+                    MotionPrimitive.LINEAR_JOINT,
+                    poses=[make_pose(0.174, -0.3, 0.3)],
+                ),
+            ]
+        )
 
-    def test_linear_cartesian_accepts_joint_target(self):
+    def test_linear_cartesian_accepts_all_targets(self):
         self.execute_motion_sequence(
             [
                 make_primitive(
                     MotionPrimitive.LINEAR_CARTESIAN,
                     joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                ),
+            ]
+        )
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    MotionPrimitive.LINEAR_CARTESIAN,
+                    poses=[make_pose(0.174, -0.3, 0.3)],
+                ),
+            ]
+        )
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    MotionPrimitive.LINEAR_CARTESIAN,
+                    joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                ),
+                make_primitive(
+                    MotionPrimitive.LINEAR_CARTESIAN,
+                    poses=[make_pose(0.174, -0.3, 0.3)],
                 ),
             ]
         )
@@ -199,23 +240,39 @@ class MotionPrimitivesControllerTest(unittest.TestCase):
             ]
         )
 
-    def test_movep_accepts_joint_target(self):
+    def test_movep_accepts_all_targets(self):
         self.execute_motion_sequence(
             [
                 make_primitive(
-                    MotionPrimitive.VENDOR_RESERVED1,  # UR: MoveP
+                    UrMotionTypes.MOVEP,
                     joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                    vel=0.5,
+                    acc=0.5,
+                    blend_radius=0.5,
+                ),
+            ]
+        )
+
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    UrMotionTypes.MOVEP,
+                    poses=[make_pose(0.174, -0.3, 0.3)],
                     vel=0.5,
                     acc=0.5,
                 ),
             ]
         )
-
-    def test_movep_accepts_pose_target(self):
         self.execute_motion_sequence(
             [
                 make_primitive(
-                    MotionPrimitive.VENDOR_RESERVED1,  # UR: MoveP
+                    UrMotionTypes.MOVEP,
+                    joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+                make_primitive(
+                    UrMotionTypes.MOVEP,
                     poses=[make_pose(0.174, -0.3, 0.3)],
                     vel=0.5,
                     acc=0.5,
@@ -223,23 +280,75 @@ class MotionPrimitivesControllerTest(unittest.TestCase):
             ]
         )
 
-    def test_optimove_j_accepts_joint_target(self):
+    def test_optimove_j_accepts_all_targets(self):
         self.execute_motion_sequence(
             [
                 make_primitive(
-                    MotionPrimitive.VENDOR_RESERVED2,  # UR: OptimoveJ
+                    UrMotionTypes.OPTIMOVEJ,
                     joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
                     vel=0.5,
                     acc=0.5,
                 ),
             ]
         )
-
-    def test_optimove_l_accepts_pose_target(self):
         self.execute_motion_sequence(
             [
                 make_primitive(
-                    MotionPrimitive.VENDOR_RESERVED3,  # UR: OptimoveL
+                    UrMotionTypes.OPTIMOVEJ,
+                    poses=[make_pose(0.174, -0.3, 0.3)],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+            ]
+        )
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    UrMotionTypes.OPTIMOVEJ,
+                    joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+                make_primitive(
+                    UrMotionTypes.OPTIMOVEJ,
+                    poses=[make_pose(0.174, -0.3, 0.3)],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+            ]
+        )
+
+    def test_optimove_l_accepts_all_targets(self):
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    UrMotionTypes.OPTIMOVEL,
+                    joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+            ]
+        )
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    UrMotionTypes.OPTIMOVEL,
+                    poses=[make_pose(0.174, -0.3, 0.3)],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+            ]
+        )
+        self.execute_motion_sequence(
+            [
+                make_primitive(
+                    UrMotionTypes.OPTIMOVEL,
+                    joint_positions=[0.9, -1.57, 1.57, -1.57, -1.57, -1.57],
+                    vel=0.5,
+                    acc=0.5,
+                ),
+                make_primitive(
+                    UrMotionTypes.OPTIMOVEL,
                     poses=[make_pose(0.174, -0.3, 0.3)],
                     vel=0.5,
                     acc=0.5,
