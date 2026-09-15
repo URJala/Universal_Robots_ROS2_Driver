@@ -2183,6 +2183,7 @@ void URPositionHardwareInterface::processMoprimMotionCmd(const std::array<double
               std::make_shared<urcl::control::MovePPrimitive>(target_command, blend_radius, acceleration, velocity));
           return;
         } else {
+          current_moprim_execution_status_ = MoprimExecutionState::EXECUTING;
           RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Executing MoveP directly.");
           bool success = instruction_executor_->moveP(target_command, acceleration, velocity, blend_radius);
           if (success) {
@@ -2212,6 +2213,7 @@ void URPositionHardwareInterface::processMoprimMotionCmd(const std::array<double
               target_command, blend_radius, acceleration, velocity));
           return;
         } else {
+          current_moprim_execution_status_ = MoprimExecutionState::EXECUTING;
           RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Executing OptiMoveJ directly.");
           bool success = instruction_executor_->optimoveJ(target_command, acceleration, velocity, blend_radius);
           if (success) {
@@ -2241,6 +2243,7 @@ void URPositionHardwareInterface::processMoprimMotionCmd(const std::array<double
               target_command, blend_radius, acceleration, velocity));
           return;
         } else {
+          current_moprim_execution_status_ = MoprimExecutionState::EXECUTING;
           RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Executing OptiMoveL directly.");
           bool success = instruction_executor_->optimoveL(target_command, acceleration, velocity, blend_radius);
           if (success) {
