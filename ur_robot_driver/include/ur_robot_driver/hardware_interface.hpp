@@ -186,6 +186,9 @@ protected:
   // stop function used by on_shutdown, on_cleanup and on_error
   hardware_interface::CallbackReturn stop();
 
+  // Resets per-activation state that must not survive a reconfigure; called from on_configure().
+  void resetActivationState();
+
   void initAsyncIO();
   void checkAsyncIO();
   void updateNonDoubleValues();
@@ -198,6 +201,13 @@ protected:
   bool is_valid_joint_information(std::vector<std::array<double, 6>> data);
   void tool_contact_callback(urcl::control::ToolContactResult);
   bool check_tool_contact_controller();
+
+  // Thin wrappers around ur_driver_ calls used by write(), overridable in tests to inject faults.
+  virtual bool
+  writeJointCommandToDriver(const urcl::vector6d_t& values, urcl::comm::ControlMode control_mode,
+                            const urcl::RobotReceiveTimeout& timeout = urcl::RobotReceiveTimeout::millisec(20));
+  virtual bool startToolContactOnDriver();
+  virtual bool endToolContactOnDriver();
 
   urcl::vector6d_t urcl_position_commands_;
   urcl::vector6d_t urcl_position_commands_old_;

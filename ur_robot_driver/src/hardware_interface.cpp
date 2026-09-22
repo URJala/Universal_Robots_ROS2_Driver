@@ -636,6 +636,8 @@ URPositionHardwareInterface::on_configure(const rclcpp_lifecycle::State& previou
 {
   RCLCPP_INFO(rclcpp::get_logger("URPositionHardwareInterface"), "Starting ...please wait...");
 
+  resetActivationState();
+
   // The robot's IP address.
   const std::string robot_ip = info_.hardware_parameters["robot_ip"];
   // Path to the urscript code that will be sent to the robot
@@ -957,6 +959,18 @@ hardware_interface::CallbackReturn URPositionHardwareInterface::stop()
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
+void URPositionHardwareInterface::resetActivationState()
+{
+  // stop() (used by on_shutdown/on_cleanup/on_error) leaves this state past its limit / signalling
+  // shutdown, so a reconfigure must reset it before the read timeout is checked or the worker threads
+  // are (re)spawned again.
+  time_since_successful_read_ = rclcpp::Duration(0, 0);
+  rtde_comm_has_been_started_ = false;
+  packet_read_ = false;
+  async_thread_shutdown_ = false;
+  async_moprim_thread_shutdown_ = false;
+}
+
 template <typename T>
 void URPositionHardwareInterface::readData(const std::unique_ptr<rtde::DataPackage>& data_pkg,
                                            const std::string& var_name, T& data)
@@ -1130,19 +1144,19 @@ hardware_interface::return_type URPositionHardwareInterface::write(const rclcpp:
        runtime_state_ == static_cast<uint32_t>(rtde::RUNTIME_STATE::PAUSING)) &&
       robot_program_running_ && (!non_blocking_read_ || packet_read_)) {
     if (stop_requested_) {
-      write_success &= ur_driver_->writeJointCommand(urcl_position_commands_, urcl::comm::ControlMode::MODE_STOPPED);
+      write_success &= writeJointCommandToDriver(urcl_position_commands_, urcl::comm::ControlMode::MODE_STOPPED);
       stop_requested_ = false;
       robot_program_running_ = false;  // We reset that here, as well to avoid a race condition
                                        // between the reverse interface callback and the next write.
     } else if (position_controller_running_) {
-      write_success &= ur_driver_->writeJointCommand(urcl_position_commands_, urcl::comm::ControlMode::MODE_SERVOJ,
-                                                     receive_timeout_);
+      write_success &=
+          writeJointCommandToDriver(urcl_position_commands_, urcl::comm::ControlMode::MODE_SERVOJ, receive_timeout_);
     } else if (velocity_controller_running_) {
-      write_success &= ur_driver_->writeJointCommand(urcl_velocity_commands_, urcl::comm::ControlMode::MODE_SPEEDJ,
-                                                     receive_timeout_);
+      write_success &=
+          writeJointCommandToDriver(urcl_velocity_commands_, urcl::comm::ControlMode::MODE_SPEEDJ, receive_timeout_);
     } else if (torque_controller_running_) {
       write_success &=
-          ur_driver_->writeJointCommand(urcl_torque_commands_, urcl::comm::ControlMode::MODE_TORQUE, receive_timeout_);
+          writeJointCommandToDriver(urcl_torque_commands_, urcl::comm::ControlMode::MODE_TORQUE, receive_timeout_);
     } else if (freedrive_mode_controller_running_ && freedrive_activated_) {
       write_success &= ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_NOOP);
 
@@ -1155,7 +1169,8 @@ hardware_interface::return_type URPositionHardwareInterface::write(const rclcpp:
     } else if (motion_primitives_forward_controller_running_) {
       write_success &= handleMoprimCommands();
     } else if (twist_controller_running_) {
-      write_success &= ur_driver_->writeJointCommand(urcl_twist_commands_, urcl::comm::ControlMode::MODE_SPEEDL, receive_timeout_);
+      write_success &=
+          writeJointCommandToDriver(urcl_twist_commands_, urcl::comm::ControlMode::MODE_SPEEDL, receive_timeout_);
     } else {
       write_success &= ur_driver_->writeKeepalive();
     }
@@ -1324,7 +1339,7 @@ bool URPositionHardwareInterface::check_tool_contact_controller()
   bool write_success = true;
   if (ur_driver_ != nullptr) {
     if (cmd_state == 2.0) {
-      write_success = ur_driver_->startToolContact();
+      write_success = startToolContactOnDriver();
       if (write_success) {
         // TOOL_CONTACT_EXECUTING
         tool_contact_state_ = 3.0;
@@ -1335,7 +1350,7 @@ bool URPositionHardwareInterface::check_tool_contact_controller()
       }
 
     } else if (cmd_state == 5.0) {
-      write_success = ur_driver_->endToolContact();
+      write_success = endToolContactOnDriver();
       if (write_success) {
         // TOOL_CONTACT_SUCCESS_END
         tool_contact_state_ = 6.0;
@@ -1348,6 +1363,23 @@ bool URPositionHardwareInterface::check_tool_contact_controller()
     }
   }
   return write_success;
+}
+
+bool URPositionHardwareInterface::writeJointCommandToDriver(const urcl::vector6d_t& values,
+                                                            urcl::comm::ControlMode control_mode,
+                                                            const urcl::RobotReceiveTimeout& timeout)
+{
+  return ur_driver_->writeJointCommand(values, control_mode, timeout);
+}
+
+bool URPositionHardwareInterface::startToolContactOnDriver()
+{
+  return ur_driver_->startToolContact();
+}
+
+bool URPositionHardwareInterface::endToolContactOnDriver()
+{
+  return ur_driver_->endToolContact();
 }
 
 void URPositionHardwareInterface::tool_contact_callback(urcl::control::ToolContactResult result)
