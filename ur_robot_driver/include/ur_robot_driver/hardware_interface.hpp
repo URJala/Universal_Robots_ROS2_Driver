@@ -197,6 +197,7 @@ protected:
   bool is_valid_joint_information(std::vector<std::array<double, 6>> data);
   void tool_contact_callback(urcl::control::ToolContactResult);
   void check_tool_contact_controller();
+  void trajectory_interface_disconnected_callback(socket_t socket);
 
   urcl::vector6d_t urcl_position_commands_;
   urcl::vector6d_t urcl_position_commands_old_;

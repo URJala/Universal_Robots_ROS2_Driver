@@ -897,6 +897,9 @@ URPositionHardwareInterface::on_configure(const rclcpp_lifecycle::State& previou
   ur_driver_->registerToolContactResultCallback(
       std::bind(&URPositionHardwareInterface::tool_contact_callback, this, std::placeholders::_1));
 
+  ur_driver_->registerTrajectoryInterfaceDisconnectedCallback(
+      std::bind(&URPositionHardwareInterface::trajectory_interface_disconnected_callback, this, std::placeholders::_1));
+
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -1843,6 +1846,13 @@ void URPositionHardwareInterface::trajectory_done_callback(urcl::control::Trajec
     RCLCPP_INFO(get_logger(), "Robot stopped, TRAJECTORY_RESULT_CANCELED");
     current_moprim_execution_status_ = MoprimExecutionState::STOPPED;
   }
+  return;
+}
+
+void URPositionHardwareInterface::trajectory_interface_disconnected_callback(socket_t socket)
+{
+  RCLCPP_INFO(get_logger(), "Robot stopped, trajectory interface disconnected");
+  current_moprim_execution_status_ = MoprimExecutionState::STOPPED;
   return;
 }
 
