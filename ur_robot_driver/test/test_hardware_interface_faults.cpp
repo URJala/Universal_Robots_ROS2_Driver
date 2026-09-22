@@ -1,0 +1,263 @@
+// Copyright 2026 Universal Robots A/S
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+//    * Redistributions of source code must retain the above copyright
+//      notice, this list of conditions and the following disclaimer.
+//
+//    * Redistributions in binary form must reproduce the above copyright
+//      notice, this list of conditions and the following disclaimer in the
+//      documentation and/or other materials provided with the distribution.
+//
+//    * Neither the name of the {copyright_holder} nor the names of its
+//      contributors may be used to endorse or promote products derived from
+//      this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+// Regression tests for the read()/write() failure handling introduced to make hardware faults
+// trigger a lifecycle error transition. These exercise URPositionHardwareInterface directly through a
+// white-box subclass (no real robot/ursim connection), following the pattern used by
+// test_robot_state_helper.cpp.
+
+// cppcheck-suppress-file syntaxError
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <limits>
+
+#include "ur_robot_driver/hardware_interface.hpp"
+
+namespace ur_robot_driver
+{
+
+// Thin wrapper exposing the protected state needed to drive read()/write() in isolation, and
+// overriding the driver-call seams so tests never need a real urcl::UrDriver instance.
+class URPositionHardwareInterfaceTestWrapper : public URPositionHardwareInterface
+{
+public:
+  URPositionHardwareInterfaceTestWrapper()
+  {
+    // Mirror the relevant parts of on_init()/initAsyncIO() so every NaN-guarded field starts in its
+    // "no new command" state instead of whatever garbage an unconstructed member holds.
+    non_blocking_read_ = false;
+    non_blocking_read_timeout_ = rclcpp::Duration(0, 0);
+    time_since_successful_read_ = rclcpp::Duration(0, 0);
+    rtde_comm_has_been_started_ = true;  // skip the ur_driver_->startRTDECommunication() call
+    packet_read_ = false;
+    stop_requested_ = false;
+    robot_program_running_ = false;
+    runtime_state_ = static_cast<uint32_t>(urcl::rtde_interface::RUNTIME_STATE::STOPPED);
+
+    position_controller_running_ = false;
+    velocity_controller_running_ = false;
+    torque_controller_running_ = false;
+    freedrive_mode_controller_running_ = false;
+    freedrive_activated_ = false;
+    passthrough_trajectory_controller_running_ = false;
+    motion_primitives_forward_controller_running_ = false;
+    twist_controller_running_ = false;
+    tool_contact_controller_running_ = false;
+    tool_contact_set_state_ = 0.0;
+
+    force_mode_task_frame_.fill(NO_NEW_CMD_);
+    force_mode_selection_vector_.fill(NO_NEW_CMD_);
+    force_mode_wrench_.fill(NO_NEW_CMD_);
+    force_mode_limits_.fill(NO_NEW_CMD_);
+    force_mode_type_ = NO_NEW_CMD_;
+    force_mode_disable_cmd_ = NO_NEW_CMD_;
+    force_mode_damping_ = NO_NEW_CMD_;
+    force_mode_gain_scaling_ = NO_NEW_CMD_;
+
+    // Non-null but never dereferenced: only used for `ur_driver_ != nullptr` guard checks, since the
+    // overridden seams below never touch the real driver.
+    ur_driver_ = std::shared_ptr<urcl::UrDriver>(reinterpret_cast<urcl::UrDriver*>(this), [](urcl::UrDriver*) {});
+
+    get_data_package = [this]() { return get_data_package_result_; };
+  }
+
+  void setNonBlockingRead(bool val)
+  {
+    non_blocking_read_ = val;
+  }
+  void setNonBlockingReadTimeout(rclcpp::Duration timeout)
+  {
+    non_blocking_read_timeout_ = timeout;
+  }
+  void setTimeSinceSuccessfulRead(rclcpp::Duration elapsed)
+  {
+    time_since_successful_read_ = elapsed;
+  }
+  void setGetDataPackageResult(bool val)
+  {
+    get_data_package_result_ = val;
+  }
+  void setRtdeCommHasBeenStarted(bool val)
+  {
+    rtde_comm_has_been_started_ = val;
+  }
+  void callResetActivationState()
+  {
+    resetActivationState();
+    // resetActivationState() also flips this to false so on_configure() re-triggers the real RTDE
+    // startup; re-arm it here since ur_driver_ is a fake pointer in this test.
+    rtde_comm_has_been_started_ = true;
+  }
+
+  void setRuntimeStatePlaying()
+  {
+    runtime_state_ = static_cast<uint32_t>(urcl::rtde_interface::RUNTIME_STATE::PLAYING);
+  }
+  void setRobotProgramRunning(bool val)
+  {
+    robot_program_running_ = val;
+  }
+  void setPositionControllerRunning(bool val)
+  {
+    position_controller_running_ = val;
+  }
+  void setToolContactControllerRunning(bool val, double set_state)
+  {
+    tool_contact_controller_running_ = val;
+    tool_contact_set_state_ = set_state;
+  }
+
+  void setWriteJointCommandResult(bool val)
+  {
+    write_joint_command_result_ = val;
+  }
+  void setStartToolContactResult(bool val)
+  {
+    start_tool_contact_result_ = val;
+  }
+  int writeJointCommandCallCount() const
+  {
+    return write_joint_command_calls_;
+  }
+  int startToolContactCallCount() const
+  {
+    return start_tool_contact_calls_;
+  }
+
+protected:
+  bool writeJointCommandToDriver(const urcl::vector6d_t& /*values*/, urcl::comm::ControlMode /*control_mode*/,
+                                 const urcl::RobotReceiveTimeout& /*timeout*/) override
+  {
+    ++write_joint_command_calls_;
+    return write_joint_command_result_;
+  }
+  bool startToolContactOnDriver() override
+  {
+    ++start_tool_contact_calls_;
+    return start_tool_contact_result_;
+  }
+  bool endToolContactOnDriver() override
+  {
+    return true;
+  }
+
+private:
+  bool get_data_package_result_ = false;
+  bool write_joint_command_result_ = true;
+  bool start_tool_contact_result_ = true;
+  int write_joint_command_calls_ = 0;
+  int start_tool_contact_calls_ = 0;
+};
+
+namespace
+{
+using hardware_interface::return_type;
+
+TEST(HardwareInterfaceReadFaults, BlockingReadFailureReturnsError)
+{
+  URPositionHardwareInterfaceTestWrapper hw;
+  hw.setNonBlockingRead(false);
+  hw.setGetDataPackageResult(false);
+
+  EXPECT_EQ(hw.read(rclcpp::Time(0), rclcpp::Duration::from_seconds(0.01)), return_type::ERROR);
+}
+
+TEST(HardwareInterfaceReadFaults, NonBlockingMissesStayOkUnderTimeout)
+{
+  URPositionHardwareInterfaceTestWrapper hw;
+  hw.setNonBlockingRead(true);
+  hw.setNonBlockingReadTimeout(rclcpp::Duration::from_seconds(0.04));
+  hw.setGetDataPackageResult(false);
+
+  const auto period = rclcpp::Duration::from_seconds(0.01);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_EQ(hw.read(rclcpp::Time(0), period), return_type::OK);
+  }
+}
+
+TEST(HardwareInterfaceReadFaults, NonBlockingMissesExceedingTimeoutReturnError)
+{
+  URPositionHardwareInterfaceTestWrapper hw;
+  hw.setNonBlockingRead(true);
+  hw.setNonBlockingReadTimeout(rclcpp::Duration::from_seconds(0.04));
+  hw.setGetDataPackageResult(false);
+
+  const auto period = rclcpp::Duration::from_seconds(0.01);
+  // 0.01, 0.02, 0.03, 0.04 -> still within/at the timeout.
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_EQ(hw.read(rclcpp::Time(0), period), return_type::OK);
+  }
+  // 0.05 -> exceeds the timeout.
+  EXPECT_EQ(hw.read(rclcpp::Time(0), period), return_type::ERROR);
+}
+
+TEST(HardwareInterfaceReadFaults, TimeoutStateResetAllowsRecoveryAfterReconfigure)
+{
+  URPositionHardwareInterfaceTestWrapper hw;
+  hw.setNonBlockingRead(true);
+  hw.setNonBlockingReadTimeout(rclcpp::Duration::from_seconds(0.04));
+  hw.setGetDataPackageResult(false);
+
+  hw.setTimeSinceSuccessfulRead(rclcpp::Duration::from_seconds(0.05));
+  EXPECT_EQ(hw.read(rclcpp::Time(0), rclcpp::Duration::from_seconds(0.01)), return_type::ERROR);
+
+  hw.callResetActivationState();
+
+  EXPECT_EQ(hw.read(rclcpp::Time(0), rclcpp::Duration::from_seconds(0.01)), return_type::OK);
+}
+
+TEST(HardwareInterfaceWriteFaults, JointCommandFailureReturnsError)
+{
+  URPositionHardwareInterfaceTestWrapper hw;
+  hw.setRuntimeStatePlaying();
+  hw.setRobotProgramRunning(true);
+  hw.setPositionControllerRunning(true);
+  hw.setWriteJointCommandResult(false);
+
+  EXPECT_EQ(hw.write(rclcpp::Time(0), rclcpp::Duration::from_seconds(0.01)), return_type::ERROR);
+  EXPECT_EQ(hw.writeJointCommandCallCount(), 1);
+}
+
+TEST(HardwareInterfaceWriteFaults, ToolContactHelperFailureReturnsError)
+{
+  URPositionHardwareInterfaceTestWrapper hw;
+  hw.setRuntimeStatePlaying();
+  hw.setRobotProgramRunning(true);
+  hw.setPositionControllerRunning(true);
+  hw.setWriteJointCommandResult(true);
+  hw.setToolContactControllerRunning(true, /*set_state=*/2.0);
+  hw.setStartToolContactResult(false);
+
+  EXPECT_EQ(hw.write(rclcpp::Time(0), rclcpp::Duration::from_seconds(0.01)), return_type::ERROR);
+  EXPECT_EQ(hw.startToolContactCallCount(), 1);
+}
+
+}  // namespace
+}  // namespace ur_robot_driver
