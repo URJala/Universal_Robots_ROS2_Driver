@@ -680,8 +680,9 @@ URPositionHardwareInterface::on_configure(const rclcpp_lifecycle::State& previou
     get_data_package = [this]() { return ur_driver_->getDataPackageBlocking(data_package_buffer_); };
   }
 
-  non_blocking_read_timeout_ = rclcpp::Duration::from_seconds(stod(info_.hardware_parameters["non_blocking_read_"
-                                                                                             "timeout"]));
+  const auto timeout_it = info_.hardware_parameters.find("non_blocking_read_timeout");
+  non_blocking_read_timeout_ = rclcpp::Duration::from_seconds(
+      timeout_it == info_.hardware_parameters.end() ? 0.04 : std::stod(timeout_it->second));
 
   // Specify gain for servoing to position in joint space.
   // A higher gain can sharpen the trajectory.

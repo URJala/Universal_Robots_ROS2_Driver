@@ -33,7 +33,7 @@ If set to false, the ROS control cycle will wait for the robot to send a status 
 shown that better real-time performance is achievable when setting this to ``true``. Required to be
 set to ``true`` when combining with other hardware components.
 When set to ``false``, the hardware interface will be stopped if it fails to read an RTDE package from the robot.
-when set to ``true``, the hardware interface will be stopped if it fails to read an RTDE package within the configured timeout (see non_blocking_read_timeout).
+When set to ``true``, the hardware interface will be stopped if it fails to read an RTDE package within the configured timeout (see non_blocking_read_timeout).
 
 non_blocking_read_timeout (default: 0.04 (seconds))
 ---------------------------------------------------
