@@ -2115,9 +2115,9 @@ void URPositionHardwareInterface::processMoprimMotionCmd(const std::array<double
       case MoprimMotionType::CIRCULAR_CARTESIAN:
       {  // CIRC
         // Check if pose values (position and quaternion) are valid
-        if (!(pose_valid && via_valid)) {
-          RCLCPP_ERROR(rclcpp::get_logger("URPositionHardwareInterface"), "Invalid motion command: goal pose or via "
-                                                                          "pose contains NaN "
+        if (!((pose_valid || joints_valid) && via_valid)) {
+          RCLCPP_ERROR(rclcpp::get_logger("URPositionHardwareInterface"), "Invalid motion command: Final joint "
+                                                                          "positions / pose or via pose contains NaN "
                                                                           "values");
           current_moprim_execution_status_ = MoprimExecutionState::ERROR;
           return;
